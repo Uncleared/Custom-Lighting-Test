@@ -11,21 +11,28 @@ public class LightInfo
     private Transform transform;
     private float intensity;
 
+    // If life runs out, light will just die
+    private float life = 1f;
 
-    public LightInfo(Color color, float range, float intensity, Vector3 pos)
+    private float defaultLife = 1f;
+    private bool bounced = false;
+
+    public LightInfo(Color color, float range, float intensity, Vector3 pos, bool bounced = false)
     {
         this.color = color;
         this.range = range;
         this.pos = pos;
         this.intensity = intensity;
+        this.bounced = bounced;
     }
 
-    public LightInfo(Color color, float range, float intensity, Transform transform)
+    public LightInfo(Color color, float range, float intensity, Transform transform, bool bounced = false)
     {
         this.color = color;
         this.range = range;
         this.transform = transform;
         this.intensity = intensity;
+        this.bounced = bounced;
     }
 
     public float CalculateRelativeIntensity(Vector3 pos)
@@ -39,7 +46,10 @@ public class LightInfo
         {
             lightPos = pos;
         }
-        float calculatedIntensity = this.intensity * (this.range / Vector3.Distance(pos, lightPos));
+
+        float d = Vector3.Distance(pos, lightPos);
+        //d = Mathf.Min(d, 0.05f);
+        float calculatedIntensity = this.intensity * (this.range / (d * d));
         return calculatedIntensity;
     }
 
@@ -58,10 +68,33 @@ public class LightInfo
         this.range = lightInfo.range;
         this.intensity = lightInfo.intensity;
         this.color = lightInfo.color;
+
+        this.SetLife(defaultLife);
+    }
+
+    public void SetLife(float newLife)
+    {
+        this.life = newLife;
+    }
+
+    public void UpdateLife()
+    {
+        life -= Time.deltaTime;
+        if (life < 0f)
+        {
+            intensity = 0f;
+        }
+
+        intensity = Mathf.Lerp(intensity, 0f, Time.deltaTime);
     }
     public Color GetColor()
     {
         return color;
+    }
+
+    public float GetRange()
+    {
+        return this.range;
     }
     //public override bool Equals(object obj)
     //{
@@ -88,10 +121,12 @@ public class SimplePointlight : MonoBehaviour
 
     public float intensity = 1f;
 
+    private MeshRenderer mr;
     // Start is called before the first frame update
     void Start()
     {
-        GetComponent<MeshRenderer>().material.color = color;
+        mr.material.EnableKeyword("_EmissionColor");
+        mr.material.SetColor("_EmissionColor", color);
     }
 
     public LightInfo GetLightInfo()
@@ -99,6 +134,14 @@ public class SimplePointlight : MonoBehaviour
         return new LightInfo(color, range, intensity, transform.position);
     }
 
+    void OnValidate()
+    {
+        if (mr == null)
+        {
+            mr = GetComponent<MeshRenderer>();
+        }
+        mr.material.SetColor("_EmissionColor", color);
+    }
     // Update is called once per frame
     void Update()
     {
@@ -110,7 +153,7 @@ public class SimplePointlight : MonoBehaviour
             {
                 if (hit.transform.TryGetComponent(out SimpleLightable lightable))
                 {
-                    lightable.AddLight(new LightInfo(color, range, intensity, transform), hit.transform);
+                    lightable.AddLight(new LightInfo(color, range, intensity, transform), transform);
                 }
             }
         }
